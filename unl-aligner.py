@@ -1,8 +1,12 @@
-#! /usr/bin/env python3.1
+#! /usr/bin/env python3
 '''                         UNL aligner
-                 Luís Gomes <luismsgomes@gmail.com>
+                2009 Luís Gomes <luismsgomes@gmail.com>
 
 Bibliography:
+
+    Parallel Texts Alignment.
+    Luís Gomes.
+    MSc Thesis, Universidade Nova de Lisboa, 2009
 
     Longest Sorted Sequence Algorithm for Parallel Text Alignment.
     Tiago Ildefonso and José Gabriel Pereira Lopes.
@@ -17,11 +21,16 @@ import collections
 import itertools
 import sys
 
+
+ENCODING="UTF-8"
+
+
 def read_text(filename):
-    with open(filename) as lines:
+    with open(filename, 'rt', encoding=ENCODING, errors='ignore') as lines:
         lines = list(map(str.split, lines))
         for line in lines: line.append('\\n')
         return list(itertools.chain.from_iterable(lines))
+
 
 def get_words_by_freq(text):
     freqs_by_word = collections.Counter(text)
@@ -29,6 +38,7 @@ def get_words_by_freq(text):
     for word, freq in freqs_by_word.items():
         words_by_freq[freq].add(word)
     return words_by_freq
+
 
 def pairs_of_words_with_same_freq(text_x, text_y):
     words_by_freq_x = get_words_by_freq(text_x)
@@ -38,8 +48,10 @@ def pairs_of_words_with_same_freq(text_x, text_y):
         for word_x, word_y in itertools.product(words_x, words_y):
             yield word_x, word_y
 
+
 def filter_by_spelling_similarity(pairs, simfun, minsim):
     return (pair for pair in pairs if simfun(*pair) >= minsim)
+
 
 def lis(seq, keyfn=lambda value: value):
     ''' Longest Increasing Subsequence
@@ -80,6 +92,7 @@ def lis(seq, keyfn=lambda value: value):
     subseq.reverse()
     return subseq
 
+
 def ed(s1, s2):
     '''Edit Distance
 
@@ -101,7 +114,9 @@ def ed(s1, s2):
             p, d[j+1] = d[j+1], min(p+t, d[j]+1, d[j+1]+1)
     return d[n]
 
+
 def ned(s1, s2): return ed(s1, s2) / max(1, len(s1), len(s2))
+
 
 _edsim_cache = {}
 def edsim(s1, s2):
@@ -111,6 +126,7 @@ def edsim(s1, s2):
         sim = 1.0 - ned(s1, s2)
         _edsim_cache[(s1, s2)] = sim
     return sim
+
 
 def align(text_x, text_y, simfun, mincpl, minsim, maxrec, reclevel=0):
     if reclevel > maxrec:
@@ -149,30 +165,37 @@ def align(text_x, text_y, simfun, mincpl, minsim, maxrec, reclevel=0):
                          simfun, mincpl, minsim, maxrec, reclevel + 1):
             yield seg
 
+
 def error(template, *args, **kwargs):
     print(template.format(*args, **kwargs), file=sys.stderr)
 
+
 def usage(progname):
-    error('\nUsage: {} TEXT_X TEXT_Y MINCPL MINSIM MAXREC\n', progname)
+    error('\nUsage: {} TEXT_X TEXT_Y OUTPUT MINCPL MINSIM MAXREC\n', progname)
+    error('\tTEXT_X and TEXT_Y are the filenames of the input texts')
+    error('\tOUTPUT is the filename of the output file')
     error('\tMINCPL (minimum common prefix length) is a positive integer value')
     error('\tMINSIM (minimum similarity) is a decimal value between 0.0 and 1.0')
     error('\tMAXREC (maximum recursion depth) is a positive integer value')
-    error('\nExample:\n{} en.txt pt.txt 3 .6 10 > enpt.txt\n', progname)
+    error('\tInput texts should be UTF-8 encoded.  Output file will also be UTF-8.')
+    error('\nExample:\n{} en.txt pt.txt enpt.txt 3 .6 10\n', progname)
+
 
 if __name__ == '__main__':
     import doctest
     doctest.testmod()    
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         usage(sys.argv[0])
         sys.exit(1)
-    mincpl = int(sys.argv[3])
-    minsim = float(sys.argv[4])
+    mincpl = int(sys.argv[4])
+    minsim = float(sys.argv[5])
     if not 0.0 <= minsim <= 1.0:
         error('minsim must be a value between 0.0 and 1.0.')
         sys.exit(1)
     simfun = edsim if minsim < 1.0 else lambda s1, s2: 1.0 if s1 == s2 else 0.0
-    maxrec = int(sys.argv[5])
+    maxrec = int(sys.argv[6])
     text_x, text_y = read_text(sys.argv[1]), read_text(sys.argv[2])
-    for segment in align(text_x, text_y, simfun, mincpl, minsim, maxrec):
-        print(*segment, sep='\t')
+    with open(sys.argv[3], "wt", encoding=ENCODING) as output:
+        for segment in align(text_x, text_y, simfun, mincpl, minsim, maxrec):
+            print(*segment, sep='\t', file=output)
 
